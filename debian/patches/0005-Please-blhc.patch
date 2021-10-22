@@ -1,0 +1,23 @@
+From: =?utf-8?q?Christian_G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Sun, 3 Jan 2021 16:40:35 +0100
+Subject: Please blhc
+
+Add -D_FORTIFY_SOURCE=2 to moc compilations
+
+See https://gitlab.kitware.com/cmake/cmake/-/issues/20631
+---
+ CMakeLists.txt | 3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -67,6 +67,9 @@ add_definitions(
+     -DQT_DEPRECATED_WARNINGS
+ )
+ 
++# please blhc, see https://gitlab.kitware.com/cmake/cmake/-/issues/20631
++add_compile_definitions(_FORTIFY_SOURCE=2)
++
+ set(SYSCONFDIR ${SYSCONF_INSTALL_DIR})
+ set(DATADIR ${DATA_INSTALL_DIR})
+ if(WIN32)

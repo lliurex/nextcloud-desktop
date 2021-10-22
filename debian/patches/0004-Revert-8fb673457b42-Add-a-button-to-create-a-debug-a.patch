@@ -1,0 +1,168 @@
+From: =?utf-8?q?Christian_G=C3=B6ttsche?= <cgzones@googlemail.com>
+Date: Sun, 3 Jan 2021 00:52:13 +0100
+Subject: Revert: 8fb673457b42 ("Add a button to create a debug archive")
+
+Drop dependency on Qt5::GuiPrivate
+---
+ src/gui/CMakeLists.txt      |  2 +-
+ src/gui/generalsettings.cpp | 98 ---------------------------------------------
+ src/gui/generalsettings.h   |  1 -
+ 3 files changed, 1 insertion(+), 100 deletions(-)
+
+--- a/src/gui/generalsettings.cpp
++++ b/src/gui/generalsettings.cpp
+@@ -33,108 +33,22 @@
+ 
+ #include "ignorelisteditor.h"
+ #include "common/utility.h"
+-#include "logger.h"
+ 
+ #include "config.h"
+ 
+ #include "legalnotice.h"
+ 
+-#include <QFileDialog>
+-#include <QMessageBox>
+ #include <QNetworkProxy>
+ #include <QDir>
+ #include <QScopedValueRollback>
+ #include <QMessageBox>
+ 
+-#include <private/qzipwriter_p.h>
+-
+ #define QTLEGACY (QT_VERSION < QT_VERSION_CHECK(5,9,0))
+ 
+ #if !(QTLEGACY)
+ #include <QOperatingSystemVersion>
+ #endif
+ 
+-namespace {
+-struct ZipEntry {
+-    QString localFilename;
+-    QString zipFilename;
+-};
+-
+-ZipEntry fileInfoToZipEntry(const QFileInfo &info)
+-{
+-    return {
+-        info.absoluteFilePath(),
+-        info.fileName()
+-    };
+-}
+-
+-ZipEntry fileInfoToLogZipEntry(const QFileInfo &info)
+-{
+-    auto entry = fileInfoToZipEntry(info);
+-    entry.zipFilename.prepend(QStringLiteral("logs/"));
+-    return entry;
+-}
+-
+-ZipEntry syncFolderToZipEntry(OCC::Folder *f)
+-{
+-    const auto journalPath = f->journalDb()->databaseFilePath();
+-    const auto journalInfo = QFileInfo(journalPath);
+-    return fileInfoToZipEntry(journalInfo);
+-}
+-
+-QVector<ZipEntry> createFileList()
+-{
+-    auto list = QVector<ZipEntry>();
+-    OCC::ConfigFile cfg;
+-
+-    list.append(fileInfoToZipEntry(QFileInfo(cfg.configFile())));
+-
+-    const auto logger = OCC::Logger::instance();
+-
+-    if (!logger->logDir().isEmpty()) {
+-        list.append({QString(), QStringLiteral("logs")});
+-
+-        QDir dir(logger->logDir());
+-        const auto infoList = dir.entryInfoList(QDir::Files);
+-        std::transform(std::cbegin(infoList), std::cend(infoList),
+-                       std::back_inserter(list),
+-                       fileInfoToLogZipEntry);
+-    } else if (!logger->logFile().isEmpty()) {
+-        list.append(fileInfoToZipEntry(QFileInfo(logger->logFile())));
+-    }
+-
+-    const auto folders = OCC::FolderMan::instance()->map().values();
+-    std::transform(std::cbegin(folders), std::cend(folders),
+-                   std::back_inserter(list),
+-                   syncFolderToZipEntry);
+-
+-    return list;
+-}
+-
+-void createDebugArchive(const QString &filename)
+-{
+-    const auto entries = createFileList();
+-
+-    QZipWriter zip(filename);
+-    for (const auto &entry : entries) {
+-        if (entry.localFilename.isEmpty()) {
+-            zip.addDirectory(entry.zipFilename);
+-        } else {
+-            QFile file(entry.localFilename);
+-            if (!file.open(QFile::ReadOnly)) {
+-                continue;
+-            }
+-            zip.addFile(entry.zipFilename, &file);
+-        }
+-    }
+-
+-    zip.addFile("__nextcloud_client_parameters.txt", QCoreApplication::arguments().join(' ').toUtf8());
+-
+-    const auto buildInfo = QString(OCC::Theme::instance()->about() + "\n\n" + OCC::Theme::instance()->aboutDetails());
+-    zip.addFile("__nextcloud_client_buildinfo.txt", buildInfo.toUtf8());
+-}
+-}
+-
+ namespace OCC {
+ 
+ GeneralSettings::GeneralSettings(QWidget *parent)
+@@ -221,7 +135,6 @@
+     _ui->monoIconsCheckBox->setVisible(Theme::instance()->monoIconsAvailable());
+ 
+     connect(_ui->ignoredFilesButton, &QAbstractButton::clicked, this, &GeneralSettings::slotIgnoreFilesEditor);
+-    connect(_ui->debugArchiveButton, &QAbstractButton::clicked, this, &GeneralSettings::slotCreateDebugArchive);
+ 
+     // accountAdded means the wizard was finished and the wizard might change some options.
+     connect(AccountManager::instance(), &AccountManager::accountAdded, this, &GeneralSettings::loadMiscSettings);
+@@ -413,17 +326,6 @@
+     }
+ }
+ 
+-void GeneralSettings::slotCreateDebugArchive()
+-{
+-    const auto filename = QFileDialog::getSaveFileName(this, tr("Create Debug Archive"), QString(), tr("Zip Archives") + " (*.zip)");
+-    if (filename.isEmpty()) {
+-        return;
+-    }
+-
+-    createDebugArchive(filename);
+-    QMessageBox::information(this, tr("Debug Archive Created"), tr("Debug archive is created at %1").arg(filename));
+-}
+-
+ void GeneralSettings::slotShowLegalNotice()
+ {
+     auto notice = new LegalNotice();
+--- a/src/gui/generalsettings.h
++++ b/src/gui/generalsettings.h
+@@ -48,7 +48,6 @@
+     void slotToggleOptionalServerNotifications(bool);
+     void slotShowInExplorerNavigationPane(bool);
+     void slotIgnoreFilesEditor();
+-    void slotCreateDebugArchive();
+     void loadMiscSettings();
+     void slotShowLegalNotice();
+ #if defined(BUILD_UPDATER)
+--- a/src/gui/CMakeLists.txt
++++ b/src/gui/CMakeLists.txt
+@@ -332,7 +332,6 @@
+ target_link_libraries(nextcloudCore
+   PUBLIC
+   Qt5::Widgets
+-  Qt5::GuiPrivate
+   Qt5::Svg
+   Qt5::Network
+   Qt5::Xml
